@@ -64,17 +64,17 @@ class Payment(models.Model):
         ]
 
     def clean(self):
-        # لازم enrollment موجود عشان نتحقق من نوع الكورس
+
         if self.enrollment_id and hasattr(self.enrollment, 'course') and self.enrollment.course:
             if getattr(self.enrollment.course, 'is_online', False) and self.method == self.METHOD_CASH:
                 raise ValidationError('In-person cash is not allowed for online courses.')
 
-        # مرجع التحويل مطلوب مع bank
+
         if self.method == self.METHOD_BANK and not self.bank_reference:
             raise ValidationError('bank_reference is required for bank transfers.')
 
     def save(self, *args, **kwargs):
-        # لو ما في amount وحاطين سعر للكورس، خده تلقائياً
+
         if (self.amount is None or float(self.amount) == 0.0) and self.enrollment_id and hasattr(self.enrollment, 'course'):
             price = getattr(self.enrollment.course, 'price', None)
             if price is not None:
