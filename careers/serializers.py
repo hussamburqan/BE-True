@@ -1,4 +1,3 @@
-# careers/serializers.py
 from rest_framework import serializers
 from .models import TalentApplication, InternshipApplication
 import json
