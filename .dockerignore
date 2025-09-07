@@ -4,8 +4,13 @@ __pycache__/
 *.pyo
 *.pyd
 *.sqlite3
-.env
-.env.*
+env/
+venv/
+.venv/
 node_modules/
-staticfiles/
 media/
+static/
+.dist/
+.build/
+.idea/
+.vscode/
