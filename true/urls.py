@@ -14,27 +14,24 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
 from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path,include
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
     path('auth/', include('authentiocation.urls')),
-    path('courses/', include('courses.urls')),
-    path('enrollments/', include('enrollments.urls')),
-    path('bookings/', include('bookings.urls')),
-    path('services/', include('services.urls')),
-    path('portfolio/', include('portfolio.urls')),
-    path('communications/', include('communications.urls')),
     path('blog/', include('blog.urls')),
-    path('payments/', include('payments.urls')),
-    path('analytics/', include('analytics.urls')),
-    path('files/', include('files.urls')),
-    path('adminpanel/', include('adminpanel.urls')),
-    path('usernotifications/', include('usernotifications.urls')),
-
+    path('courses/', include('courses.urls')),
+    path('services/', include('services.urls')),
+    path('enrollments/', include('enrollments.urls')),
+    path('careers/', include('careers.urls')),
+    path('portfolio/', include('portfolio.urls')),
+    path('companies/', include('companies.urls')),
+    path('partners/', include('partners.urls')),
+    path('testimonials/', include('testimonials.urls')),
+    path('team/', include('team.urls')),
+    path('ckeditor/', include('ckeditor_uploader.urls')),
+    path('audit/', include('audit.urls')),
 
 ]
 if settings.DEBUG:

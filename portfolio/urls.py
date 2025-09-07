@@ -1,21 +1,16 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from .views import (
-    PortfolioListView,
-    PortfolioDetailView,
-    PortfolioCreateView,
-    PortfolioUpdateView,
-    PortfolioDeleteView,
-    PortfoliolatestListView,
+    PublicPortfolioListView,
+    PortfolioItemLatestView,
+    AdminPortfolioViewSet,
 )
 
-urlpatterns = [
-    # قراءة
-    path('',          PortfolioListView.as_view(),   name='portfolio-list'),
-    path('portfolio-latest',          PortfoliolatestListView.as_view(),   name='portfolio-list'),
-    path('/<int:pk>', PortfolioDetailView.as_view(), name='portfolio-detail'),
+router = DefaultRouter()
+router.register(r'admin/portfolio', AdminPortfolioViewSet, basename='admin-portfolio')
 
-    # إدارة (Admin)
-    path('',                PortfolioCreateView.as_view(), name='portfolio-create'),
-    path('edit-portfolio/<int:item_id>',  PortfolioUpdateView.as_view(), name='portfolio-update'),
-    path('/<int:item_id>',  PortfolioDeleteView.as_view(), name='portfolio-delete'),
+urlpatterns = [
+    path('public/', PublicPortfolioListView.as_view(), name='public-portfolio-list'),
+    path('public/latest/', PortfolioItemLatestView.as_view(), name='public-portfolio-latest'),
+    path('', include(router.urls)),
 ]

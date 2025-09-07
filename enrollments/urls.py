@@ -1,16 +1,13 @@
-from django.urls import path
-from .views import (
-    EnrollmentCreateView,
-    UserEnrollmentsView,
-    CourseEnrollmentsView,
-    EnrollmentStatusUpdateView,
-    EnrollmentProgressView,
-)
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import PublicEnrollmentCreateView, AdminParticipantViewSet, AdminEnrollmentViewSet, AdminPaymentViewSet
+
+router = DefaultRouter()
+router.register(r'admin/participants', AdminParticipantViewSet, basename='admin-participants')
+router.register(r'admin/enrollments',  AdminEnrollmentViewSet,  basename='admin-enrollments')
+router.register(r'admin/payments',     AdminPaymentViewSet,     basename='admin-payments')
 
 urlpatterns = [
-    path('enrollments', EnrollmentCreateView.as_view(), name='enrollment-create'),
-    path('enrollments/user/<int:participant_id>', UserEnrollmentsView.as_view(), name='user-enrollments'),
-    path('enrollments/course/<int:course_id>', CourseEnrollmentsView.as_view(), name='course-enrollments'),
-    path('enrollments/<int:enrollment_id>/status', EnrollmentStatusUpdateView.as_view(), name='enrollment-status'),
-    path('enrollments/<int:enrollment_id>/progress', EnrollmentProgressView.as_view(), name='enrollment-progress'),
+    path('public/', PublicEnrollmentCreateView.as_view(), name='public-enroll'),
+    path('', include(router.urls)),
 ]

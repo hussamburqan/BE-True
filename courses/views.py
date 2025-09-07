@@ -1,54 +1,50 @@
-from rest_framework import generics, permissions
-from rest_framework.exceptions import PermissionDenied
-from .models import Course, Review
-from .serializers import CourseSerializer, CourseListSerializer, ReviewSerializer
-from .permisiions import *
+from rest_framework import generics, viewsets
+from rest_framework.parsers import MultiPartParser, FormParser
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
 
-class CourseCreateView(generics.ListCreateAPIView):
+from audit.mixins import AuditCreateOnlyMixin
+from .models import Course
+from .serializers import CourseListSerializer, CourseDetailSerializer
+from .filters import CourseFilter
+from true.permissions import IsStaffOrSuperuser
+
+
+class PublicCourseListView(generics.ListAPIView):
+    queryset = Course.objects.filter(is_active=True)
+    serializer_class = CourseListSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = CourseFilter
+    search_fields = [
+        'title_ar','title_en','description_ar','description_en',
+        'instructor_name_ar','instructor_name_en',
+    ]
+    ordering_fields = ['created_at','price','start_date','registration_end_date']
+    ordering = ['-created_at']
+
+
+class PublicCourseDetailView(generics.RetrieveAPIView):
+    queryset = Course.objects.filter(is_active=True)
+    serializer_class = CourseDetailSerializer
+    lookup_field = 'pk'
+
+
+class AdminCourseViewSet(AuditCreateOnlyMixin, viewsets.ModelViewSet):
     queryset = Course.objects.all()
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly, CanAddCourse]
+    permission_classes = [IsStaffOrSuperuser]
+    parser_classes = [MultiPartParser, FormParser]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = CourseFilter
+    search_fields = [
+        'title_ar','title_en','description_ar','description_en',
+        'instructor_name_ar','instructor_name_en',
+    ]
+    ordering_fields = ['created_at','price','start_date','registration_end_date']
+    ordering = ['-created_at']
+
+    audit_fields = ["id", "title_ar", "title_en", "price", "start_date", "registration_end_date", "created_at", "is_active"]
 
     def get_serializer_class(self):
-        return CourseSerializer if self.request.method == 'POST' else CourseListSerializer
-
-class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Course.objects.all()
-    serializer_class = CourseSerializer
-    permission_classes = [CanEditOrDeleteCourse,CanGetCourse]
-    def get_permissions(self):
-        if self.request.method in ['PUT', 'DELETE']:
-            return []
-        return [permissions.AllowAny()]
-
-class CourseListView(generics.ListCreateAPIView):
-    queryset = Course.objects.all()
-    def get_serializer_class(self):
-        return CourseListSerializer
-
-class CurriculumView(generics.RetrieveAPIView):
-    queryset = Course.objects.all()
-    serializer_class = CourseSerializer
-
-    def get(self, request, *args, **kwargs):
-        course = self.get_object()
-        return Response({'curriculum': course.curriculum})
-
-
-class ReviewListView(generics.ListAPIView):
-    serializer_class = ReviewSerializer
-
-    def get_queryset(self):
-        course_id = self.kwargs['pk']
-        return Review.objects.filter(course_id=course_id)
-
-
-class ReviewCreateView(generics.CreateAPIView):
-    serializer_class = ReviewSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def perform_create(self, serializer):
-        course_id = self.kwargs['pk']
-        course = generics.get_object_or_404(Course, pk=course_id)
-        if Review.objects.filter(course=course, user=self.request.user).exists():
-            raise PermissionDenied("You have already reviewed this course.")
-        serializer.save(user=self.request.user, course=course)
+        if self.action == 'list':
+            return CourseListSerializer
+        return CourseDetailSerializer

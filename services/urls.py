@@ -1,13 +1,16 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from .views import (
-    LatestServicesView, ServiceListCreateView, ServiceRetrieveUpdateDestroyView,
-    ServiceRequestListCreateView, ServiceRequestRetrieveUpdateView
+    PublicServiceListView,
+    ServiceLatestView,
+    AdminServiceViewSet,
 )
 
+router = DefaultRouter()
+router.register(r'admin/services', AdminServiceViewSet, basename='admin-services')
+
 urlpatterns = [
-    path('services', ServiceListCreateView.as_view()),
-     path('services/latest', LatestServicesView.as_view()),
-    path('services/<int:pk>', ServiceRetrieveUpdateDestroyView.as_view()),
-    path('requests', ServiceRequestListCreateView.as_view()),
-    path('requests/<int:pk>', ServiceRequestRetrieveUpdateView.as_view()),
+    path('public/', PublicServiceListView.as_view(), name='public-services-list'),
+    path('public/latest/', ServiceLatestView.as_view(), name='public-services-latest'),
+    path('', include(router.urls)),
 ]

@@ -1,37 +1,40 @@
-from rest_framework import generics, permissions
+from rest_framework import viewsets, generics, permissions, filters
+from rest_framework.parsers import MultiPartParser, FormParser
 
-from portfolio.permissions import CanAddProject,AnyUser, CanDeleteProject, CanUpdateProject
+from audit.mixins import AuditCreateOnlyMixin
+from true.permissions import IsStaffOrSuperuser
 from .models import PortfolioItem
-from .serializers import PortfolioSerializer
+from .serializers import PortfolioItemListSerializer
 
-class PortfolioListView(generics.ListAPIView):
+
+class PublicPortfolioListView(generics.ListAPIView):
     queryset = PortfolioItem.objects.all()
-    serializer_class = PortfolioSerializer
+    serializer_class = PortfolioItemListSerializer
     permission_classes = [permissions.AllowAny]
 
-class PortfoliolatestListView(generics.ListAPIView):
-    serializer_class = PortfolioSerializer
-    permission_classes = [AnyUser]
+
+class PortfolioItemLatestView(generics.ListAPIView):
+    serializer_class = PortfolioItemListSerializer
+    permission_classes = [permissions.AllowAny]
     pagination_class = None
+
     def get_queryset(self):
-        return PortfolioItem.objects.all()[:3]
+        return PortfolioItem.objects.order_by("-created_at")[:6]
 
-class PortfolioDetailView(generics.RetrieveAPIView):
-    queryset = PortfolioItem.objects.all()
-    serializer_class = PortfolioSerializer
-    permission_classes = [permissions.AllowAny]
 
-class PortfolioCreateView(generics.CreateAPIView):
-    serializer_class = PortfolioSerializer
-    permission_classes = [CanAddProject]
+class AdminPortfolioViewSet(AuditCreateOnlyMixin, viewsets.ModelViewSet):
+    """
+    /admin/portfolio , /admin/portfolio/<id>
+    - يسجّل عمليات الإضافة فقط (create)
+    - صلاحيات: ستاف/سوبر فقط
+    """
+    queryset = PortfolioItem.objects.all().order_by("-created_at", "-id")
+    serializer_class = PortfolioItemListSerializer
+    permission_classes = [IsStaffOrSuperuser]
+    parser_classes = [MultiPartParser, FormParser]
 
-class PortfolioUpdateView(generics.UpdateAPIView):
-    queryset = PortfolioItem.objects.all()
-    serializer_class = PortfolioSerializer
-    permission_classes = [CanUpdateProject]
-    lookup_url_kwarg = 'item_id'
+    audit_fields = ["id", "created_at"]
 
-class PortfolioDeleteView(generics.DestroyAPIView):
-    queryset = PortfolioItem.objects.all()
-    permission_classes = [CanDeleteProject]
-    lookup_url_kwarg = 'item_id'
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["id"]
+    ordering_fields = ["created_at", "id"]

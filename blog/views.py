@@ -1,54 +1,38 @@
-from rest_framework import generics, permissions
-from .models import Post, Category
+from rest_framework import generics, viewsets, permissions, filters
+from audit.mixins import AuditCreateOnlyMixin
+from true.permissions import IsStaffOrSuperuser
+from .models import Post
 from .serializers import (
-    CategorySerializer,
-    PostListSerializer,
-    PostDetailSerializer,
-    PostSerializer,
+    PostListSerializer, PostDetailSerializer, PostWriteSerializer
 )
-from .permissions import *
 
-# ----------  القراءة للجميع  ----------
-class PostListView(generics.ListAPIView):
-    queryset = Post.objects.select_related('category').all()
+class PostPublicListView(generics.ListAPIView):
+    queryset = Post.objects.filter(is_published=True).order_by('-id')
     serializer_class = PostListSerializer
     permission_classes = [permissions.AllowAny]
 
-
-class PostDetailView(generics.RetrieveAPIView):
-    queryset = Post.objects.select_related('category')
+class PostPublicDetailView(generics.RetrieveAPIView):
+    queryset = Post.objects.filter(is_published=True)
     serializer_class = PostDetailSerializer
     permission_classes = [permissions.AllowAny]
 
-class CategoryListCreateView(generics.ListCreateAPIView):
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
-    permission_classes = [CanManageCategory]
+class AdminPostViewSet(AuditCreateOnlyMixin, viewsets.ModelViewSet):
+    """
+    يسجّل عمليات الإضافة فقط (create) عبر AuditCreateOnlyMixin
+    صلاحيات الأدمن: ستاف/سوبر فقط
+    """
+    queryset = Post.objects.all().order_by('-id')
+    permission_classes = [IsStaffOrSuperuser]
 
-class CategoryRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
-    permission_classes = [CanManageCategory]
+    audit_fields = ["id", "title", "is_published", "created_at"]
 
-class CategoryListView(generics.ListAPIView):
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
-    permission_classes = [permissions.AllowAny]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields   = ['id', 'title']
+    ordering_fields = ['id', 'created_at']
 
-
-class PostListCreateView(generics.ListCreateAPIView):
-    queryset = Post.objects.all()
-    serializer_class = PostSerializer
-    permission_classes = [CanManagePost]
-
-class PostRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Post.objects.all()
-    serializer_class = PostSerializer
-    permission_classes = [CanManagePost]
-
-class CategoryPostsView(generics.ListAPIView):
-    serializer_class = PostSerializer
-    permission_classes = [permissions.AllowAny]
-    def get_queryset(self):
-        category_id = self.kwargs['pk']
-        return Post.objects.filter(category__id=category_id)
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return PostWriteSerializer
+        if self.action == 'retrieve':
+            return PostDetailSerializer
+        return PostListSerializer

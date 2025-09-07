@@ -1,64 +1,119 @@
-from rest_framework import generics, permissions, status
+from rest_framework import generics, viewsets, permissions, status, decorators
 from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 
-from enrollments.permissions import CanUpdateStatus, IsAdminOrReadOnly
-
-from .models import Enrollment, Participant
+from audit.mixins import AuditCreateOnlyMixin
 from .serializers import (
-    EnrollmentCreateSerializer,
-    EnrollmentStatusSerializer,
-    EnrollmentProgressSerializer,
+    PublicEnrollmentCreateSerializer,
+    ParticipantSerializer, EnrollmentSerializer, PaymentSerializer
 )
-from courses.models import Course
+from .models import Participant, Enrollment, Payment
+from true.permissions import IsStaffOrSuperuser
 
 
-class EnrollmentCreateView(generics.CreateAPIView):
+class PublicEnrollmentCreateView(AuditCreateOnlyMixin, generics.GenericAPIView):
     """
-    POST /api/enrollments/  ← تسجيل في دورة
+    يسجّل إنشاء الـ Enrollment (إضافة فقط). بما إنّه public، فعّلنا audit_public_creates.
     """
     permission_classes = [permissions.AllowAny]
-    serializer_class = EnrollmentCreateSerializer
+    serializer_class = PublicEnrollmentCreateSerializer
+
+    audit_public_creates = True
+
+    audit_fields = ["id", "participant_id", "course_id", "status", "created_at"]
+
+    def post(self, request, *args, **kwargs):
+        s = self.get_serializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        out = s.save()
+
+        enrollment = None
+
+        if isinstance(out, Enrollment):
+            enrollment = out
+
+        elif hasattr(s, "instance") and isinstance(s.instance, Enrollment):
+            enrollment = s.instance
+
+        elif isinstance(out, dict):
+            possible_keys = ("enrollment", "enrollment_id", "id")
+            for k in possible_keys:
+                eid = out.get(k)
+                if eid:
+                    try:
+                        enrollment = Enrollment.objects.get(pk=eid)
+                        break
+                    except Enrollment.DoesNotExist:
+                        pass
+
+        if enrollment is not None:
+            self._log_create(enrollment)
+
+        return Response(out, status=status.HTTP_201_CREATED)
 
 
-class UserEnrollmentsView(generics.ListAPIView):
+class AdminParticipantViewSet(AuditCreateOnlyMixin, viewsets.ModelViewSet):
     """
-    GET /api/enrollments/user/<participant_id>/
+    يسجّل عمليات الإضافة فقط ل Participant.
     """
-    serializer_class = EnrollmentProgressSerializer
+    queryset = Participant.objects.all()
+    serializer_class = ParticipantSerializer
+    permission_classes = [IsStaffOrSuperuser]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['email', 'phone']
+    search_fields = ['email', 'phone', 'full_name']
+    ordering = ['-created_at']
 
-    def get_queryset(self):
-        pid = self.kwargs['participant_id']
-        return Enrollment.objects.filter(participant_id=pid).select_related('course')
+    audit_fields = ["id", "full_name", "email", "phone", "created_at"]
 
 
-class CourseEnrollmentsView(generics.ListAPIView):
+class AdminEnrollmentViewSet(AuditCreateOnlyMixin, viewsets.ModelViewSet):
     """
-    GET /api/enrollments/course/<course_id>/
+    يسجّل عمليات الإضافة فقط ل Enrollment.
     """
-    serializer_class = EnrollmentProgressSerializer
+    queryset = Enrollment.objects.select_related('participant', 'course').all()
+    serializer_class = EnrollmentSerializer
+    permission_classes = [IsStaffOrSuperuser]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['is_active', 'course', 'participant']
+    search_fields = ['participant__email', 'participant__full_name', 'course__title_en', 'course__title_ar']
+    ordering = ['-created_at']
 
-    def get_queryset(self):
-        cid = self.kwargs['course_id']
-        return Enrollment.objects.filter(course_id=cid).select_related('course', 'participant')
-
-
-class EnrollmentStatusUpdateView(generics.UpdateAPIView):
-    """
-    PUT /api/enrollments/<id>/status/
-    يسمح فقط للمشرف.
-    """
-    queryset = Enrollment.objects.all()
-    serializer_class = EnrollmentStatusSerializer
-    permission_classes = [CanUpdateStatus]
-    lookup_url_kwarg = 'enrollment_id'
+    audit_fields = ["id", "participant_id", "course_id", "is_active", "created_at"]
 
 
-class EnrollmentProgressView(generics.RetrieveAPIView):
+class AdminPaymentViewSet(AuditCreateOnlyMixin, viewsets.ModelViewSet):
     """
-    GET /api/enrollments/<id>/progress/
+    يسجّل عمليات الإضافة فقط ل Payment.
+    الإجراءات السريعة أدناه (verify/cancel/...) هي تحديثات، لن يتم تسجيلها (حسب طلبك).
     """
-    queryset = Enrollment.objects.all()
-    serializer_class = EnrollmentProgressSerializer
-    permission_classes = [permissions.AllowAny]
-    lookup_url_kwarg = 'enrollment_id'
+    queryset = Payment.objects.select_related('enrollment', 'enrollment__participant', 'enrollment__course').all()
+    serializer_class = PaymentSerializer
+    permission_classes = [IsStaffOrSuperuser]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['status', 'method', 'enrollment', 'enrollment__course']
+    search_fields = ['bank_reference', 'note', 'enrollment__participant__email']
+    ordering = ['-created_at']
+
+    audit_fields = ["id", "enrollment_id", "status", "method", "created_at"]
+
+    @decorators.action(detail=True, methods=['post'])
+    def mark_received(self, request, pk=None):
+        p = self.get_object()
+        p.status = Payment.STATUS_RECEIVED
+        p.save(update_fields=['status'])
+        return Response({'status': p.status})
+
+    @decorators.action(detail=True, methods=['post'])
+    def verify(self, request, pk=None):
+        p = self.get_object()
+        p.status = Payment.STATUS_VERIFIED
+        p.save(update_fields=['status'])
+        return Response({'status': p.status})
+
+    @decorators.action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        p = self.get_object()
+        p.status = Payment.STATUS_CANCELLED
+        p.save(update_fields=['status'])
+        return Response({'status': p.status})
