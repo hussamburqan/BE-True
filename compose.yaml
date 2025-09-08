@@ -4,7 +4,8 @@ services:
     build: .
     command: >
       bash -lc
-      "python manage.py migrate --noinput &&
+      "python manage.py makemigrations --noinput && 
+       python manage.py migrate --noinput &&
        python manage.py collectstatic --noinput &&
        gunicorn true.wsgi:application -c gunicorn.conf.py"
     environment:
