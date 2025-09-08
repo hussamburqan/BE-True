@@ -23,5 +23,5 @@ class PublicTestimonialCreateView(generics.CreateAPIView):
     
     queryset = Testimonial.objects.none()
     serializer_class = TestimonialSerializer
-    permission_classes = [IsStaffOrSuperuserOrReadOnly]
+    permission_classes = [permissions.AllowAny]
     parser_classes = [MultiPartParser, FormParser]
