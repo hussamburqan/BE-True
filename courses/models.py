@@ -27,9 +27,9 @@ class Course(models.Model):
     instructor_name_en = models.CharField(max_length=120, blank=True, default='')
 
     class AttendanceMode(models.TextChoices):
-        IN_PERSON = 'in_person',
-        ONLINE    = 'online',
-        HYBRID    = 'hybrid',
+        IN_PERSON = 'in_person', _('In person')
+        ONLINE    = 'online',    _('Online')
+        HYBRID    = 'hybrid',    _('Hybrid')
 
     attendance_mode = models.CharField(max_length=16, choices=AttendanceMode.choices, default=AttendanceMode.IN_PERSON)
     location_ar     = models.CharField(max_length=160, blank=True, default='')
