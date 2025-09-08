@@ -165,24 +165,42 @@ USE_I18N = True
 USE_TZ = True
 
 # =========================
-# Static & Media (WhiteNoise)
+# Static & Media
 # =========================
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# قيم افتراضية للـ media عند العمل محليًا
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# Django 5 STORAGES (WhiteNoise for static)
+# Django 5 STORAGES — عرّفه أولًا
 STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
 }
 
+# بدّل التخزين الافتراضي إلى Cloudinary إذا كان المتغيّر موجود
+USE_CLOUDINARY = bool(
+    os.getenv("CLOUDINARY_URL") or
+    (
+        os.getenv("CLOUDINARY_CLOUD_NAME") and
+        os.getenv("CLOUDINARY_API_KEY") and
+        os.getenv("CLOUDINARY_API_SECRET")
+    )
+)
+
+if USE_CLOUDINARY:
+    STORAGES["default"] = {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    }
+    # CKEditor يرفع على Cloudinary أيضًا
+    CKEDITOR_UPLOAD_PATH = "uploads/"
+    CKEDITOR_STORAGE_BACKEND = "cloudinary_storage.storage.MediaCloudinaryStorage"
 # =========================
 # CORS
 # =========================
@@ -288,3 +306,9 @@ LOGGING = {
         "django.request": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
     },
 }
+
+
+INSTALLED_APPS += [
+    "cloudinary",
+    "cloudinary_storage",
+]
