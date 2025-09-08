@@ -3,22 +3,45 @@ set -e
 
 python manage.py migrate --noinput
 
-# إنشاء سوبر يوزر اختياري عبر ENV
+# ===== Superuser creation (works with custom user model) =====
 python - <<'PY'
 import os, django
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", os.getenv("DJANGO_SETTINGS_MODULE","true.settings"))
+os.environ.setdefault(
+    "DJANGO_SETTINGS_MODULE",
+    os.getenv("DJANGO_SETTINGS_MODULE", "true.settings")
+)
 django.setup()
 from django.contrib.auth import get_user_model
-U, E, P = os.getenv("DJANGO_SU_NAME"), os.getenv("DJANGO_SU_EMAIL"), os.getenv("DJANGO_SU_PASS")
-if U and E and P:
-    User = get_user_model()
-    if not User.objects.filter(username=U).exists():
-        User.objects.create_superuser(U, E, P)
-        print(f"✔ Superuser created: {U}")
+
+User = get_user_model()
+username_field = getattr(User, "USERNAME_FIELD", "username")  # غالبًا 'email'
+identifier = (
+    os.getenv("DJANGO_SU_IDENTIFIER")
+    or os.getenv("DJANGO_SU_EMAIL")
+    or os.getenv("DJANGO_SU_NAME")
+)
+password = os.getenv("DJANGO_SU_PASS")
+email = os.getenv("DJANGO_SU_EMAIL")
+name = os.getenv("DJANGO_SU_NAME")
+
+if identifier and password:
+    # هل يوجد بالفعل؟
+    exists = User.objects.filter(**{username_field: identifier}).exists()
+    if exists:
+        print(f"ℹ Superuser already exists ({username_field}={identifier}).")
     else:
-        print("ℹ Superuser already exists.")
+        kwargs = {username_field: identifier}
+        # لو في حقل email إضافي (وأحيانًا USERNAME_FIELD نفسه هو email)
+        if email:
+            kwargs.setdefault("email", email)
+        # لو عندك حقل name في المودل
+        if name and hasattr(User, "name"):
+            kwargs.setdefault("name", name)
+        # أنشئ السوبر يوزر
+        u = User.objects.create_superuser(password=password, **kwargs)
+        print(f"✔ Superuser created with {username_field}={identifier}")
 else:
-    print("ℹ No superuser env vars set. Skipping.")
+    print("ℹ Missing DJANGO_SU_IDENTIFIER/EMAIL/NAME or DJANGO_SU_PASS; skipping.")
 PY
 
 exec "$@"
